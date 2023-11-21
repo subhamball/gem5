@@ -1,0 +1,391 @@
+--- gem5
+
+-----------------------------------------------------------------
+The gem5 simulator is most useful for research when you build new models and new features on top of the current codebase.
+-----------------------------------------------------------------
+To download gem5, you can use git to checkout to current stable branch. 
+
+ git clone https://github.com/gem5/gem5
+-----------------------------------------------------------------
+After cloning the source code, you can build gem5 by using scons. Building gem5 can take anywhere from a few minutes on a large server to 45 minutes on a laptop. gem5 must be built on a Unix platform. 
+
+ cd gem5
+ 
+ scons build/X86/gem5.opt -j <NUMBER OF CPUs ON YOUR PLATFORM>
+ 
+ build/X86/gem5.opt configs/learning_gem5/part1/simple.py
+---------------------------------------------------------------
+#to build gem5 with scons i got first error --> command 'scons' not found
+
+# to slove this problem ---> install scons by using sudo apt install scons commands.
+----------------------------------------------------------------
+The gem5 git repository has two branches: develop and stable.
+
+The develop branch contains the very latest gem5 changes but is not stable. It is frequently updated. The develop branch should only be used when contributing the the gem5 project.
+
+The stable branch contains stable gem5 code. The HEAD of the stable branch points towards the latest gem5 release. We would advise researchers use the latest stable release of gem5 and report which version was used when publishing results.
+------------------------------------------------------------------
+“gem5” should always have a lowercase “g”. If it makes you uncomfortable beginning a sentence with a lowercase letter or your editor requires a capital letter, you can instead refer to gem5 as “The gem5 Simulator”.
+-----------------------------------------------------------------
+                        Dependencies:
+git : gem5 uses git for version control.
+gcc 7+: gcc is used to compiled gem5. Version >=7 must be used. We support up to gcc Version 12.
+Clang: Clang can also be used. At present, we support Clang 6 to Clang 14 (inclusive).
+SCons 3.0+ : gem5 uses SCons as its build environment. SCons 3.0 or greater must be used.
+Python 3.6+ : gem5 relies on Python development libraries. gem5 can be compiled and run in environments using Python 3.6+.
+protobuf 2.1+ (Optional): The protobuf library is used for trace generation and playback.
+Boost (Optional): The Boost library is a set of general purpose C++ libraries. It is a necessary dependency if you wish to use the SystemC implementation.
+----------------------------------------------------------------
+gem5’s build system is based on SCons, an open source build system implemented in Python.
+
+The main scons file is called SConstruct and is found in the root of the source tree. Additional scons files are named SConscript and are found throughout the tree, 
+
+gem5 can be built with SCons using:
+
+ scons build/{ISA}/gem5.{variant} -j {cpus}
+
+where {ISA} is the target (guest) Instruction Set Architecture, and {variant} specifies the compilation settings.
+
+The -j flag is optional and allows for parallelization of compilation with {cpus} specifying the number of threads.
+------------------------------------------------------------------
+# to install all of the required dependencies
+
+sudo apt install build-essential git m4 scons zlib1g zlib1g-dev libprotobuf-dev protobuf-compiler libprotoc-dev libgoogle-perftools-dev python-dev python
+------------------------------------------------------------------
+                       gem5 binary types
+
+The SCons scripts in gem5 currently have 5 different binaries you can build for gem5: debug, opt, and fast. These names are mostly self-explanatory, but detailed below.
+
+debug : Built with no optimizations and debug symbols. This binary is useful when using a debugger to debug if the variables you need to view are optimized out in the opt version of gem5. Running with debug is slow compared to the other binaries.
+
+opt : This binary is build with most optimizations on (e.g., -O3), but with debug symbols included. This binary is much faster than debug, but still contains enough debug information to be able to debug most problems.
+
+fast : Built with all optimizations on (including link-time optimizations on supported platforms) and with no debug symbols. Additionally, any asserts are removed, but panics and fatals are still included. fast is the highest performing binary, and is much smaller than opt. However, fast is only appropriate when you feel that it is unlikely your code has major bugs.
+-----------------------------------------------------------------
+			common error
+			
+1) Wrong gcc version:
+
+Error: gcc version 5 or newer required.
+       Installed version: 4.4.7
+       
+Update your environment variables to point to the right gcc version, or install a more up to date version of gcc. See building-requirements-section.
+
+2) Python in a non-default location:
+
+If you use a non-default version of Python, (e.g., version 3.6 when 2.5 is your default), there may be problems when using SCons to build gem5.
+
+Traceback (most recent call last):
+  File "........../gem5-stable/src/python/importer.py", line 93, in <module>
+    sys.meta_path.append(importer)
+TypeError: 'dict' object is not callable
+
+To fix this, you can force SCons to use your environment's Python version by running python3 `which scons` build/X86/gem5.opt instead of scons build/X86/gem5.opt.
+
+3) M4 macro processor not installed:
+
+If the M4 macro processor isn't installed you'll see an error similar to this:
+
+...
+Checking for member exclude_host in struct perf_event_attr...yes
+Error: Can't find version of M4 macro processor.  Please install M4 and try again.
+
+Just installing the M4 macro package may not solve this issue. You may nee to also install all of the autoconf tools. On Ubuntu, you can use the following command.
+
+ sudo apt-get install automake
+----------------------------------------------------------------
+almost always use timing mode for the memory simulation, except in special cases like fast-forwarding and restoring from a checkpoint.
+-----------------------------------------------------------------
+X86TimingSimpleCPU CPU model executes each instruction in a single clock cycle to execute, except memory requests, which flow through the memory system. 
+
+If we wanted to use the RISCV ISA we could use RiscvTimingSimpleCPU or if we wanted to use the ARM ISA we could use ArmTimingSimpleCPU and for x86 ISA use X86TimingSimpleCPU
+-----------------------------------------------------------------
+To connect memory system components together, gem5 uses a port abstraction. Each memory object can have two kinds of ports, request ports and response ports. Requests are sent from a request port to a response port, and responses are sent from a response port to a request port. When connecting ports, you must connect a request port to a response port.
+------------------------------------------------------------------
+		Full system(FS) vs syscall emulation(SE)
+		
+gem5 can run in two different modes called "syscall emulation" and "full system" or SE and FS modes.
+
+in Full system mode gem5 emulates the entire hardware system and runs an unmodified kernel. Full system mode is similar to running a virtual machine.
+
+in syscall mode, does not emulate all of the devices in a system and focuses on simulating the CPU and memory system.
+
+syscall emulation only emulates Linux system calls, and thus only models user-mode code.
+
+If you do not need to model the operating system for your research questions, and you want extra performance, you should use SE mode. However, if you need high fidelity modeling of the system, or OS interaction like page table walks are important, then you should use FS mode.
+------------------------------------------------------------------
+All gem5 BaseCPU's take the naming format {ISA}{Type}CPU. Ergo, if we wanted a RISCV Minor CPU we'd use RiscvMinorCPU.
+
+The Valid ISAs are:
+
+ Riscv
+ Arm
+ X86
+ Sparc
+ Power
+ Mips
+
+The CPU types are:
+
+ AtomicSimpleCPU
+ O3CPU
+ TimingSimpleCPu
+ KvmCPU
+ MinorCPU
+----------------------------------------------------------------------
+			Classic caches and Ruby caches
+			
+gem5 currently has two completely distinct subsystems to model the on-chip caches in a system, the "Classic caches" and "Ruby".
+
+The difference between these two models is that Ruby is designed to model cache coherence in detail. Part of Ruby is SLICC, a language for defining cache coherence protocols. On the other hand, the classic caches implement a simplified and inflexible MOESI coherence protocol.
+
+To choose which model to use, you should ask yourself what you are trying to model. If you are modeling changes to the cache coherence protocol or the coherence protocol could have a first-order impact on your results, use Ruby. Otherwise, if the coherence protocol isn't important to you, use the classic caches.
+-----------------------------------------------------------------
+gem5 is a modular discrete event driven computer system simulator platform. That means that:
+
+gem5’s components can be rearranged, parameterized, extended or replaced easily to suit your needs.
+It simulates the passing of time as a series of discrete events.
+Its intended use is to simulate one or more computer systems in various ways.
+It’s more than just a simulator; it’s a simulator platform that lets you use as many of its premade components as you want to build up your own simulation system.
+----------------------------------------------------------------
+default case: Our configuration script is going to model a very simple system. We’ll have just one simple CPU core. This CPU core will be connected to a system-wide memory bus. And we’ll have a single DDR3 memory channel, also connected to the memory bus.
+
+---------------config file creation------------------------------
+Once we have a system, let’s set up how the memory will be simulated. We are going to use timing mode for the memory simulation. You will almost always use timing mode for the memory simulation, except in special cases like fast-forwarding and restoring from a checkpoint. We will also set up a single memory range of size 512 MB, a very small system. 
+
+---------------------lab1--------------------------------------------
+Parameters in the configuration file can be changed and the results should be different. For instance, if you double the system clock, the simulation should finish faster. Or, if you change the DDR controller to DDR4, the performance should be better.
+
+Additionally, you can change the CPU model to X86MinorCPU to model an in-order CPU, or X86O3CPU to model an out-of-order CPU. However, note that X86O3CPU currently does not work with simple.py, because X86O3CPU requires a system with separate instruction and data caches (X86O3CPU does work with the configuration in the next section).
+---------------------------------adding paraeters to your script-----------------------
+When performing experiments with gem5, you don’t want to edit your configuration script every time you want to test the system with different parameters. To get around this, you can add command-line parameters to your gem5 configuration script. 
+
+------------------------ gem5 statistics and output--------------------------------
+In addition to any information which your simulation script prints out, after running gem5, there are three files generated in a directory called m5out:
+
+config.ini
+ Contains a list of every SimObject created for the simulation and the values for its parameters.
+
+config.json
+ The same as config.ini, but in json format.
+ 
+stats.txt
+ A text representation of all of the gem5 statistics registered for the simulation.
+ 
+----------------------------config.ini-----------------------------------------------
+This file is the definitive version of what was simulated. All of the parameters for each SimObject that is simulated, whether they were set in the configuration scripts or the defaults were used, are shown in this file.
+-------------------------------- Begin Simulation Statistics ----------
+simSeconds                                   0.000057                       # Number of seconds simulated (Second)
+simTicks                                     57467000                       # Number of ticks simulated (Tick)
+finalTick                                    57467000                       # Number of ticks from beginning of simulation (restored from checkpoints and never reset) (Tick)
+simFreq                                  1000000000000                       # The number of ticks per simulated second ((Tick/Second))
+hostSeconds                                      0.03                       # Real time elapsed on the host (Second)
+hostTickRate                               2295882330                       # The number of ticks simulated per host second (ticks/s) ((Tick/Second))
+hostMemory                                     665792                       # Number of bytes of host memory used (Byte)
+simInsts                                         6225                       # Number of instructions simulated (Count)
+simOps                                          11204                       # Number of ops (including micro ops) simulated (Count)
+hostInstRate                                   247382                       # Simulator instruction rate (inst/s) ((Count/Second))
+hostOpRate                                     445086                       # Simulator op (including micro ops) rate (op/s) ((Count/Second))
+
+ A couple of important statistics are sim_seconds which is the total simulated time for the simulation, sim_insts which is the number of instructions committed by the CPU, and host_inst_rate which tells you the performance of gem5.
+--------------stats.txt----------------------
+gem5 has a flexible statistics generating system.Each instantiation of a SimObject has it’s own statistics.
+Each statistic has a name (first column), a value (second column), and a description (last column preceded by #) 
+
+--- the order in the status.txt file
+	--- basics simulation statistics
+	--- cpu statistics
+	--- memory controller statistics
+ 
+--------------------------CPU statistics----------------------------
+the SimObjects’ statistics are printed. For instance, the CPU statistics, which contains information on the number of syscalls, statistics for cache system and translation buffers, etc.
+
+system.clk_domain.clock                          1000                       # Clock period in ticks (Tick)
+system.clk_domain.voltage_domain.voltage            1                       # Voltage in Volts (Volt)
+system.cpu.numCycles                            57467                       # Number of cpu cycles simulated (Cycle)
+system.cpu.numWorkItemsStarted                      0                       # Number of work items this cpu started (Count)
+system.cpu.numWorkItemsCompleted                    0                       # Number of work items this cpu completed (Count)
+system.cpu.dcache.demandHits::cpu.data           1941                       # number of demand (read+write) hits (Count)
+system.cpu.dcache.demandHits::total              1941                       # number of demand (read+write) hits (Count)
+system.cpu.dcache.overallHits::cpu.data          1941                       # number of overall hits (Count)
+system.cpu.dcache.overallHits::total             1941                       # number of overall hits (Count)
+system.cpu.dcache.demandMisses::cpu.data          133                       # number of demand (read+write) misses (Count)
+system.cpu.dcache.demandMisses::total             133                       # number of demand (read+write) misses (Count)
+system.cpu.dcache.overallMisses::cpu.data          133                       # number of overall misses (Count)
+system.cpu.dcache.overallMisses::total            133                       # number of overall misses (Count)
+system.cpu.dcache.demandMissLatency::cpu.data     14301000                       # number of demand (read+write) miss ticks (Tick)
+system.cpu.dcache.demandMissLatency::total     14301000                       # number of demand (read+write) miss ticks (Tick)
+system.cpu.dcache.overallMissLatency::cpu.data     14301000                       # number of overall miss ticks (Tick)
+system.cpu.dcache.overallMissLatency::total     14301000                       # number of overall miss ticks (Tick)
+system.cpu.dcache.demandAccesses::cpu.data         2074                       # number of demand (read+write) accesses (Count)
+system.cpu.dcache.demandAccesses::total          2074                       # number of demand (read+write) accesses (Count)
+system.cpu.dcache.overallAccesses::cpu.data         2074                       # number of overall (read+write) accesses (Count)
+system.cpu.dcache.overallAccesses::total         2074                       # number of overall (read+write) accesses (Count)
+system.cpu.dcache.demandMissRate::cpu.data     0.064127                       # miss rate for demand accesses (Ratio)
+system.cpu.dcache.demandMissRate::total      0.064127                       # miss rate for demand accesses (Ratio)
+system.cpu.dcache.overallMissRate::cpu.data     0.064127                       # miss rate for overall accesses (Ratio)
+system.cpu.dcache.overallMissRate::total     0.064127                       # miss rate for overall accesses (Ratio)
+system.cpu.dcache.demandAvgMissLatency::cpu.data 107526.315789                       # average overall miss latency ((Cycle/Count))
+system.cpu.dcache.demandAvgMissLatency::total 107526.315789                       # average overall miss latency ((Cycle/Count))
+system.cpu.dcache.overallAvgMissLatency::cpu.data 107526.315789                       # average overall miss latency ((Cycle/Count))
+system.cpu.dcache.overallAvgMissLatency::total 107526.315789                       # average overall miss latency ((Cycle/Count))
+...
+system.cpu.mmu.dtb.rdAccesses                    1123                       # TLB accesses on read requests (Count)
+system.cpu.mmu.dtb.wrAccesses                     953                       # TLB accesses on write requests (Count)
+system.cpu.mmu.dtb.rdMisses                        11                       # TLB misses on read requests (Count)
+system.cpu.mmu.dtb.wrMisses                         9                       # TLB misses on write requests (Count)
+system.cpu.mmu.dtb.walker.power_state.pwrStateResidencyTicks::UNDEFINED     57467000                       # Cumulative time (in ticks) in various power states (Tick)
+system.cpu.mmu.itb.rdAccesses                       0                       # TLB accesses on read requests (Count)
+system.cpu.mmu.itb.wrAccesses                    7940                       # TLB accesses on write requests (Count)
+system.cpu.mmu.itb.rdMisses                         0                       # TLB misses on read requests (Count)
+system.cpu.mmu.itb.wrMisses                        37                       # TLB misses on write requests (Count)
+system.cpu.mmu.itb.walker.power_state.pwrStateResidencyTicks::UNDEFINED     57467000                       # Cumulative time (in ticks) in various power states (Tick)
+system.cpu.power_state.pwrStateResidencyTicks::ON     57467000                       # Cumulative time (in ticks) in various power states (Tick)
+system.cpu.thread_0.numInsts                        0                       # Number of Instructions committed (Count)
+system.cpu.thread_0.numOps                          0                       # Number of Ops committed (Count)
+system.cpu.thread_0.numMemRefs                      0                       # Number of Memory References (Count)
+system.cpu.workload.numSyscalls                    11                       # Number of system calls (Count)
+---------------------------A tour of the directory structure-----------------------------
+All of gem5’s configuration files can be found in configs/. The directory structure is shown below:
+
+ configs/boot:
+bbench-gb.rcS  bbench-ics.rcS  hack_back_ckpt.rcS  halt.sh
+
+ configs/common:
+Benchmarks.py   Caches.py  cpu2000.py    FileSystemConfig.py  GPUTLBConfig.py   HMC.py       MemConfig.py   Options.py     Simulation.py
+CacheConfig.py  cores      CpuConfig.py  FSConfig.py          GPUTLBOptions.py  __init__.py  ObjectList.py  SimpleOpts.py  SysPaths.py
+
+ configs/dist:
+sw.py
+
+ configs/dram:
+lat_mem_rd.py  low_power_sweep.py  sweep.py
+
+ configs/example:
+apu_se.py  etrace_replay.py  garnet_synth_traffic.py  hmctest.py    hsaTopology.py  memtest.py  read_config.py  ruby_direct_test.py      ruby_mem_test.py     sc_main.py
+arm        fs.py             hmc_hello.py             hmc_tgen.cfg  memcheck.py     noc_config  riscv           ruby_gpu_random_test.py  ruby_random_test.py  se.py
+
+ configs/learning_gem5:
+part1  part2  part3  README
+
+ configs/network:
+__init__.py  Network.py
+
+ configs/nvm:
+sweep_hybrid.py  sweep.py
+
+ configs/ruby:
+AMD_Base_Constructor.py  CHI.py        Garnet_standalone.py  __init__.py              MESI_Three_Level.py  MI_example.py      MOESI_CMP_directory.py  MOESI_hammer.py
+CHI_config.py            CntrlBase.py  GPU_VIPER.py          MESI_Three_Level_HTM.py  MESI_Two_Level.py    MOESI_AMD_Base.py  MOESI_CMP_token.py      Ruby.py
+
+ configs/splash2:
+cluster.py  run.py
+ 
+ configs/topologies:
+BaseTopology.py  Cluster.py  CrossbarGarnet.py  Crossbar.py  CustomMesh.py  __init__.py  MeshDirCorners_XY.py  Mesh_westfirst.py  Mesh_XY.py  Pt2Pt.py
+
+-----------------------Each directory is briefly describe---------
+--- boot/
+	--- These are rcS files which are used in full-system mode. These files are loaded by the simulator after Linux boots and are executed by the shell. Most of these are used to control benchmarks when running in full-system mode
+
+--- common/
+	--- This directory contains a number of helper scripts and functions to create simulated systems. For instance, Caches.py is similar to the caches.py and caches_opts.py files created in previous chapters.
+	
+--- dram/
+	--- Contains scripts to test DRAM.
+	
+--- example/
+	---This directory contains some example gem5 configuration scripts that can be used out-of-the-box to run gem5. Specifically, se.py and fs.py are quite useful.
+	
+--- learning_gem5/
+	--- This directory contains all gem5 configuration scripts found in the learning_gem5 book.
+	
+--- network/
+	--- This directory contains the configurations scripts for a HeteroGarnet network
+	
+--- nvm/
+	---This directory contains example scripts using the NVM interface.
+	
+--- ruby/
+	--- This directory contains the configurations scripts for Ruby and its included cache coherence protocols
+	
+--- spash2/
+	--- This directory contains scripts to run the splash2 benchmark suite with a few options to configure the simulated system.
+	
+--- topologies/
+	--- This directory contains the implementation of the topologies that can be used when creating the Ruby cache hierarchy.
+	
+-----------------------run the hello world program without any parameters----------
+ build/X86/gem5.opt configs/deprecated/example/se.py --cmd=tests/test-progs/hello/bin/x86/linux/hello
+
+-----------------------------gem5 default case----------------------------------------
+However, this isn’t a very interesting simulation at all! By default, gem5 uses the atomic CPU and uses atomic memory accesses, so there’s no real timing data reported! To confirm this, you can look at m5out/config.ini. The CPU is shown on line 51
+
+[system.cpu]
+type=X86AtomicSimpleCPU
+children=interrupts isa mmu power_state tracer workload
+branchPred=Null
+checker=Null
+clk_domain=system.cpu_clk_domain
+cpu_id=0
+do_checkpoint_insts=true
+do_statistics_insts=true
+
+-----------------------To actually run gem5 in timing mode--------------------------
+To actually run gem5 in timing mode, let’s specify a CPU type. While we’re at it, we can also specify sizes for the L1 caches.
+ build/X86/gem5.opt configs/deprecated/example/se.py --cmd=tests/test-progs/hello/bin/x86/linux/hello --cpu-type=TimingSimpleCPU --l1d_size=64kB --l1i_size=16kB --caches
+ 
+---------------------Some common options se.py and fs.py-----------------------
+All of the possible options are printed when you run:
+ build/X86/gem5.opt configs/example/se.py --help
+ 
+--cpu-type=CPU_TYPE
+
+The type of cpu to run with. This is an important parameter to always set. The default is atomic, which doesn’t perform a timing simulation.
+--sys-clock=SYS_CLOCK
+
+Top-level clock for blocks running at system speed.
+--cpu-clock=CPU_CLOCK
+
+Clock for blocks running at CPU speed. This is separate from the system clock above.
+--mem-type=MEM_TYPE
+
+Type of memory to use. Options include different DDR memories, and the ruby memory controller.
+--caches
+
+Perform the simulation with classic caches.
+--l2cache
+
+Perform the simulation with an L2 cache, if using classic caches.
+--ruby
+
+Use Ruby instead of the classic caches as the cache system simulation.
+-m TICKS, --abs-max-tick=TICKS
+
+Run to absolute simulated tick specified including ticks from a restored checkpoint. This is useful if you only want simulate for a certain amount of simulated time.
+-I MAXINSTS, --maxinsts=MAXINSTS
+
+Total number of instructions to simulate (default: run forever). This is useful if you want to stop simulation after a certain number of instructions has been executed.
+-c CMD, --cmd=CMD
+
+The binary to run in syscall emulation mode.
+-o OPTIONS, --options=OPTIONS
+
+The options to pass to the binary, use ” ” around the entire string. This is useful when you are running a command which takes options. You can pass both arguments and options (e.g., –whatever) through this variable.
+--output=OUTPUT
+
+Redirect stdout to a file. This is useful if you want to redirect the output of the simulated application to a file instead of printing to the screen. Note: to redirect gem5 output, you have to pass a parameter before the configuration script.
+--errout=ERROUT
+
+Redirect stderr to a file. Similar to above.
+
+-------------------------Extending gem5 for ARM------------------------------------
+--- Downloading ARM Binaries
+Let’s start by downloading some ARM benchmark binaries. Begin from the root of the gem5 folder:
+ mkdir -p cpu_tests/benchmarks/bin/arm
+ cd cpu_tests/benchmarks/bin/arm
+ wget dist.gem5.org/dist/v22-0/test-progs/cpu-tests/bin/arm/Bubblesort
+ wget dist.gem5.org/dist/v22-0/test-progs/cpu-tests/bin/arm/FloatMM
+ 
+--- Building gem5 to run ARM Binaries
+ scons build/X86/gem5.opt -j 5
